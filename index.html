@@ -2,13 +2,14 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#2b2118">
   <meta name="description" content="Bitácora: gestor de tareas por categorías con seguimiento, guardado en archivos JSON.">
   <title>Bitácora · Gestor de tareas</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Courier+Prime:wght@400;700&family=Special+Elite&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
   <header class="cabecera">
@@ -36,6 +37,7 @@
         <button type="button" id="btn-nueva-categoria" class="btn-redondo" aria-label="Nueva categoría" title="Nueva categoría">+</button>
       </div>
       <ul id="lista-categorias" class="lista-categorias"></ul>
+      <p class="archivador-ayuda">Arrastra una ficha sobre una carpeta para asociarla a esa categoría.</p>
     </aside>
 
     <main class="escritorio">
@@ -57,7 +59,14 @@
         </div>
       </section>
 
-      <section class="tablero" aria-label="Tablero de tareas">
+      <!-- Selector de columna (solo celular) -->
+      <nav class="selector-estado" aria-label="Ver columna">
+        <button type="button" class="selector-btn activo" data-ver-estado="pendiente" aria-pressed="true">Pendiente <span data-contador-movil="pendiente">0</span></button>
+        <button type="button" class="selector-btn" data-ver-estado="en_curso" aria-pressed="false">En curso <span data-contador-movil="en_curso">0</span></button>
+        <button type="button" class="selector-btn" data-ver-estado="completada" aria-pressed="false">Hechas <span data-contador-movil="completada">0</span></button>
+      </nav>
+
+      <section class="tablero" data-vista="pendiente" aria-label="Tablero de tareas">
         <div class="columna" data-estado="pendiente">
           <header class="columna-cabecera"><h3>Pendiente</h3><span class="contador" data-contador="pendiente">0</span></header>
           <div class="columna-cuerpo" data-estado="pendiente"></div>
@@ -75,6 +84,8 @@
   </div>
 
   <footer class="pie">Hecho con tinta digital · Tus datos viven en tu navegador y en tus archivos JSON</footer>
+
+  <button type="button" id="btn-flotante" class="btn-flotante" aria-label="Nueva tarea">+</button>
 
   <!-- Diálogo: tarea -->
   <dialog id="dialogo-tarea" class="dialogo">
@@ -138,19 +149,34 @@
   </dialog>
 
   <!-- Diálogo: categoría -->
-  <dialog id="dialogo-categoria" class="dialogo dialogo-pequeno">
+  <dialog id="dialogo-categoria" class="dialogo dialogo-mediano">
     <form id="form-categoria" class="hoja">
       <header class="hoja-cabecera">
         <h2 id="titulo-dialogo-categoria">Nueva categoría</h2>
         <button type="button" class="btn-cerrar" data-cerrar aria-label="Cerrar">×</button>
       </header>
+
       <label class="etiqueta">Nombre
         <input type="text" name="nombre" class="campo" required maxlength="40">
       </label>
+
       <fieldset class="paleta">
         <legend class="etiqueta">Color de la carpeta</legend>
         <div id="opciones-color" class="opciones-color"></div>
       </fieldset>
+
+      <section class="asociacion">
+        <h3>Asociar tareas</h3>
+        <p id="resumen-asociacion" class="ayuda"></p>
+        <label class="sr-only" for="buscar-asociacion">Filtrar tareas</label>
+        <input type="search" id="buscar-asociacion" class="campo" placeholder="Filtrar tareas…">
+        <ul id="lista-asociacion" class="lista-asociacion"></ul>
+      </section>
+
+      <label id="campo-destino" class="etiqueta">Si eliminas esta categoría, sus tareas…
+        <select name="destino" class="campo"></select>
+      </label>
+
       <footer class="hoja-pie">
         <button type="button" id="btn-eliminar-categoria" class="btn btn-peligro">Eliminar</button>
         <span class="espaciador"></span>
@@ -160,8 +186,20 @@
     </form>
   </dialog>
 
+  <!-- Diálogo: mover tarea a otra categoría -->
+  <dialog id="dialogo-mover" class="dialogo dialogo-pequeno">
+    <div class="hoja">
+      <header class="hoja-cabecera">
+        <h2>Asociar a categoría</h2>
+        <button type="button" class="btn-cerrar" data-cerrar aria-label="Cerrar">×</button>
+      </header>
+      <p id="mover-tarea-titulo" class="ayuda"></p>
+      <ul id="lista-mover" class="lista-mover"></ul>
+    </div>
+  </dialog>
+
   <div id="aviso" class="aviso" popover="manual" role="status" aria-live="polite"></div>
 
-  <script src="app.js" defer></script>
+  <script src="app.js?v=3" defer></script>
 </body>
 </html>
