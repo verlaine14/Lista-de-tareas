@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "actualizado": "2026-11-09T20:00:00.000Z",
+  "categorias": [
+    { "id": "cat-trabajo", "nombre": "Trabajo", "color": "#2a6f6f", "creada": "2026-11-01T14:00:00.000Z" },
+    { "id": "cat-hogar", "nombre": "Hogar", "color": "#d9a441", "creada": "2026-11-01T14:05:00.000Z" }
+  ],
+  "tareas": [
+    {
+      "id": "t-001",
+      "categoriaId": "cat-trabajo",
+      "titulo": "Preparar informe mensual",
+      "descripcion": "Consolidar los indicadores de octubre y enviarlos al equipo.",
+      "prioridad": "alta",
+      "estado": "en_curso",
+      "progreso": 40,
+      "fechaLimite": "2026-11-15",
+      "creada": "2026-11-02T13:00:00.000Z",
+      "actualizada": "2026-11-05T16:30:00.000Z",
+      "seguimiento": [
+        { "id": "s-002", "fecha": "2026-11-05T16:30:00.000Z", "tipo": "progreso", "nota": "Progreso 0% → 40%" },
+        { "id": "s-001", "fecha": "2026-11-02T13:00:00.000Z", "tipo": "creacion", "nota": "Tarea creada" }
+      ]
+    },
+    {
+      "id": "t-002",
+      "categoriaId": "cat-hogar",
+      "titulo": "Pagar servicios públicos",
+      "descripcion": "",
+      "prioridad": "media",
+      "estado": "pendiente",
+      "progreso": 0,
+      "fechaLimite": "2026-11-20",
+      "creada": "2026-11-03T12:00:00.000Z",
+      "actualizada": "2026-11-03T12:00:00.000Z",
+      "seguimiento": [
+        { "id": "s-003", "fecha": "2026-11-03T12:00:00.000Z", "tipo": "creacion", "nota": "Tarea creada" }
+      ]
+    }
+  ]
+}

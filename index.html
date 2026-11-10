@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Bitácora: gestor de tareas por categorías con seguimiento, guardado en archivos JSON.">
+  <title>Bitácora · Gestor de tareas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Courier+Prime:wght@400;700&family=Special+Elite&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="cabecera">
+    <div class="cabecera-linea">
+      <span>Vol. I</span>
+      <span id="fecha-hoy"></span>
+      <span>Edición de escritorio</span>
+    </div>
+    <div class="cabecera-principal">
+      <h1 class="marca">Bitácora</h1>
+      <p class="lema">Registro de tareas &amp; seguimiento</p>
+    </div>
+    <div class="cabecera-acciones">
+      <span id="estado-archivo" class="estado-archivo">Guardado local</span>
+      <button type="button" id="btn-abrir" class="btn btn-papel">Abrir JSON</button>
+      <button type="button" id="btn-guardar" class="btn btn-tinta">Guardar JSON</button>
+      <input type="file" id="input-archivo" accept=".json,application/json" hidden>
+    </div>
+  </header>
+
+  <div class="contenedor">
+    <aside class="archivador" aria-label="Categorías">
+      <div class="archivador-cabecera">
+        <h2>Categorías</h2>
+        <button type="button" id="btn-nueva-categoria" class="btn-redondo" aria-label="Nueva categoría" title="Nueva categoría">+</button>
+      </div>
+      <ul id="lista-categorias" class="lista-categorias"></ul>
+    </aside>
+
+    <main class="escritorio">
+      <section id="estadisticas" class="estadisticas" aria-label="Resumen"></section>
+
+      <section class="barra">
+        <h2 id="titulo-vista" class="titulo-vista">Todas las tareas</h2>
+        <div class="filtros">
+          <label class="sr-only" for="buscar">Buscar</label>
+          <input type="search" id="buscar" class="campo" placeholder="Buscar…">
+          <label class="sr-only" for="filtro-prioridad">Prioridad</label>
+          <select id="filtro-prioridad" class="campo">
+            <option value="todas">Toda prioridad</option>
+            <option value="alta">Alta</option>
+            <option value="media">Media</option>
+            <option value="baja">Baja</option>
+          </select>
+          <button type="button" id="btn-nueva-tarea" class="btn btn-tinta">+ Nueva tarea</button>
+        </div>
+      </section>
+
+      <section class="tablero" aria-label="Tablero de tareas">
+        <div class="columna" data-estado="pendiente">
+          <header class="columna-cabecera"><h3>Pendiente</h3><span class="contador" data-contador="pendiente">0</span></header>
+          <div class="columna-cuerpo" data-estado="pendiente"></div>
+        </div>
+        <div class="columna" data-estado="en_curso">
+          <header class="columna-cabecera"><h3>En curso</h3><span class="contador" data-contador="en_curso">0</span></header>
+          <div class="columna-cuerpo" data-estado="en_curso"></div>
+        </div>
+        <div class="columna" data-estado="completada">
+          <header class="columna-cabecera"><h3>Completada</h3><span class="contador" data-contador="completada">0</span></header>
+          <div class="columna-cuerpo" data-estado="completada"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <footer class="pie">Hecho con tinta digital · Tus datos viven en tu navegador y en tus archivos JSON</footer>
+
+  <!-- Diálogo: tarea -->
+  <dialog id="dialogo-tarea" class="dialogo">
+    <form id="form-tarea" class="hoja" novalidate>
+      <header class="hoja-cabecera">
+        <h2 id="titulo-dialogo-tarea">Nueva tarea</h2>
+        <button type="button" class="btn-cerrar" data-cerrar aria-label="Cerrar">×</button>
+      </header>
+
+      <label class="etiqueta">Título
+        <input type="text" name="titulo" class="campo" required maxlength="120">
+      </label>
+      <label class="etiqueta">Descripción
+        <textarea name="descripcion" class="campo" rows="3" maxlength="1000"></textarea>
+      </label>
+
+      <div class="rejilla">
+        <label class="etiqueta">Categoría
+          <select name="categoriaId" class="campo" required></select>
+        </label>
+        <label class="etiqueta">Prioridad
+          <select name="prioridad" class="campo">
+            <option value="alta">Alta</option>
+            <option value="media">Media</option>
+            <option value="baja">Baja</option>
+          </select>
+        </label>
+        <label class="etiqueta">Estado
+          <select name="estado" class="campo">
+            <option value="pendiente">Pendiente</option>
+            <option value="en_curso">En curso</option>
+            <option value="completada">Completada</option>
+          </select>
+        </label>
+        <label class="etiqueta">Fecha límite
+          <input type="date" name="fechaLimite" class="campo">
+        </label>
+      </div>
+
+      <label class="etiqueta">Progreso · <output id="salida-progreso">0%</output>
+        <input type="range" name="progreso" min="0" max="100" step="5" value="0">
+      </label>
+
+      <section id="seccion-seguimiento" class="seguimiento">
+        <h3>Seguimiento</h3>
+        <div class="nota-nueva">
+          <label class="sr-only" for="input-nota">Nueva nota</label>
+          <input type="text" id="input-nota" class="campo" placeholder="Anota un avance, bloqueo o decisión…" maxlength="300">
+          <button type="button" id="btn-agregar-nota" class="btn btn-papel">Anotar</button>
+        </div>
+        <ol id="linea-tiempo" class="linea-tiempo"></ol>
+      </section>
+
+      <footer class="hoja-pie">
+        <button type="button" id="btn-eliminar-tarea" class="btn btn-peligro">Eliminar</button>
+        <span class="espaciador"></span>
+        <button type="button" class="btn btn-papel" data-cerrar>Cancelar</button>
+        <button type="submit" class="btn btn-tinta">Guardar</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Diálogo: categoría -->
+  <dialog id="dialogo-categoria" class="dialogo dialogo-pequeno">
+    <form id="form-categoria" class="hoja">
+      <header class="hoja-cabecera">
+        <h2 id="titulo-dialogo-categoria">Nueva categoría</h2>
+        <button type="button" class="btn-cerrar" data-cerrar aria-label="Cerrar">×</button>
+      </header>
+      <label class="etiqueta">Nombre
+        <input type="text" name="nombre" class="campo" required maxlength="40">
+      </label>
+      <fieldset class="paleta">
+        <legend class="etiqueta">Color de la carpeta</legend>
+        <div id="opciones-color" class="opciones-color"></div>
+      </fieldset>
+      <footer class="hoja-pie">
+        <button type="button" id="btn-eliminar-categoria" class="btn btn-peligro">Eliminar</button>
+        <span class="espaciador"></span>
+        <button type="button" class="btn btn-papel" data-cerrar>Cancelar</button>
+        <button type="submit" class="btn btn-tinta">Guardar</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <div id="aviso" class="aviso" popover="manual" role="status" aria-live="polite"></div>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
