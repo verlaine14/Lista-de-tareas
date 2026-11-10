@@ -21,7 +21,7 @@ const NOMBRES_CAMPOS = {
 const TIPOS_JSON = [{ description: 'Archivo JSON de Bitácora', accept: { 'application/json': ['.json'] } }];
 
 const app = {
-  datos: crearEstructuraVacia(),
+  datos: null,            // se inicializa al cargar la página
   filtro: { categoriaId: 'todas', texto: '', prioridad: 'todas' },
   archivo: null,          // FileSystemFileHandle (Chrome/Edge)
   nombreArchivo: null,
@@ -30,20 +30,31 @@ const app = {
   categoriaActualId: null,
 };
 
+let temporizadorAviso = null;
+
 /* ---------- Utilidades ---------- */
-const $ = (sel, ctx = document) => ctx.querySelector(sel);
-const $$ = (sel, ctx = document) => [...ctx.querySelectorAll(sel)];
+function $(sel, ctx = document) { return ctx.querySelector(sel); }
+function $$(sel, ctx = document) { return [...ctx.querySelectorAll(sel)]; }
 
 function uid() {
-  if (window.crypto?.randomUUID) return crypto.randomUUID();
+  if (window.crypto && typeof crypto.randomUUID === 'function') {
+    try { return crypto.randomUUID(); } catch { /* contexto no seguro */ }
+  }
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
 }
 
-const ahora = () => new Date().toISOString();
+function ahora() { return new Date().toISOString(); }
 
-function hoyISO() {
-  const d = new Date();
+function fechaLocalISO(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function hoyISO() { return fechaLocalISO(new Date()); }
+
+function sumarDias(n) {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return fechaLocalISO(d);
 }
 
 function escapar(texto = '') {
@@ -70,13 +81,51 @@ function giroDesdeId(id) {
   return ((Math.abs(h) % 5) - 2) * 0.4;
 }
 
-const estaVencida = t => Boolean(t.fechaLimite) && t.estado !== 'completada' && t.fechaLimite < hoyISO();
-const buscarTarea = id => app.datos.tareas.find(t => t.id === id);
-const buscarCategoria = id => app.datos.categorias.find(c => c.id === id);
+function estaVencida(t) {
+  return Boolean(t.fechaLimite) && t.estado !== 'completada' && t.fechaLimite < hoyISO();
+}
+function buscarTarea(id) { return app.datos.tareas.find(t => t.id === id); }
+function buscarCategoria(id) { return app.datos.categorias.find(c => c.id === id); }
 
 /* ---------- Modelo de datos ---------- */
 function crearEstructuraVacia() {
   return { version: VERSION_DATOS, actualizado: ahora(), categorias: [], tareas: [] };
+}
+
+function registrar(tarea, tipo, nota) {
+  tarea.seguimiento.unshift({ id: uid(), fecha: ahora(), tipo, nota });
+  tarea.actualizada = ahora();
+}
+
+// Datos de demostración para la primera vez (si no hay nada guardado ni data/tareas.json)
+function datosDeEjemplo() {
+  const trabajo = { id: uid(), nombre: 'Trabajo', color: '#2a6f6f', creada: ahora() };
+  const hogar = { id: uid(), nombre: 'Hogar', color: '#d9a441', creada: ahora() };
+
+  const crear = (categoria, titulo, descripcion, prioridad, estado, progreso, dias) => {
+    const t = {
+      id: uid(), categoriaId: categoria.id, titulo, descripcion, prioridad, estado, progreso,
+      fechaLimite: dias === null ? '' : sumarDias(dias),
+      creada: ahora(), actualizada: ahora(), seguimiento: [],
+    };
+    registrar(t, 'creacion', 'Tarea creada');
+    return t;
+  };
+
+  const informe = crear(trabajo, 'Preparar informe mensual', 'Consolidar indicadores y enviarlos al equipo.', 'alta', 'en_curso', 40, 5);
+  registrar(informe, 'nota', 'Ya tengo los datos de ventas; falta el resumen.');
+
+  return {
+    version: VERSION_DATOS,
+    actualizado: ahora(),
+    categorias: [trabajo, hogar],
+    tareas: [
+      informe,
+      crear(trabajo, 'Revisar propuesta del cliente', '', 'media', 'pendiente', 0, 10),
+      crear(hogar, 'Pagar servicios públicos', '', 'media', 'pendiente', 0, 3),
+      crear(hogar, 'Organizar el estudio', 'Clasificar papeles y donar lo que no se usa.', 'baja', 'completada', 100, null),
+    ],
+  };
 }
 
 // Valida y completa cualquier JSON cargado para que la app nunca se rompa
@@ -132,11 +181,6 @@ function normalizar(crudo) {
   return { version: VERSION_DATOS, actualizado: crudo.actualizado || ahora(), categorias, tareas };
 }
 
-function registrar(tarea, tipo, nota) {
-  tarea.seguimiento.unshift({ id: uid(), fecha: ahora(), tipo, nota });
-  tarea.actualizada = ahora();
-}
-
 /* ---------- Persistencia ---------- */
 function persistir({ marcarCambios = true } = {}) {
   app.datos.actualizado = ahora();
@@ -168,7 +212,12 @@ async function cargarSemilla() {
 }
 
 async function cargarInicial() {
-  app.datos = leerLocal() || (await cargarSemilla()) || crearEstructuraVacia();
+  const local = leerLocal();
+  if (local) {
+    app.datos = local;
+    return;
+  }
+  app.datos = (await cargarSemilla()) || datosDeEjemplo();
   persistir({ marcarCambios: false });
 }
 
@@ -196,7 +245,7 @@ function importarTexto(texto, nombre) {
 }
 
 async function abrirArchivo() {
-  if (!('showOpenFilePicker' in window)) {
+  if (typeof window.showOpenFilePicker !== 'function') {
     $('#input-archivo').click();
     return;
   }
@@ -213,7 +262,7 @@ async function guardarArchivo() {
   app.datos.actualizado = ahora();
   const texto = JSON.stringify(app.datos, null, 2);
 
-  if (!('showSaveFilePicker' in window)) {
+  if (typeof window.showSaveFilePicker !== 'function') {
     descargar(texto);
     return;
   }
@@ -239,10 +288,9 @@ async function guardarArchivo() {
 
 function descargar(texto) {
   const url = URL.createObjectURL(new Blob([texto], { type: 'application/json' }));
-  const enlace = Object.assign(document.createElement('a'), {
-    href: url,
-    download: app.nombreArchivo || 'tareas.json',
-  });
+  const enlace = document.createElement('a');
+  enlace.href = url;
+  enlace.download = app.nombreArchivo || 'tareas.json';
   document.body.append(enlace);
   enlace.click();
   enlace.remove();
@@ -266,6 +314,7 @@ function renderizar() {
 
 function pintarEstadoArchivo() {
   const el = $('#estado-archivo');
+  if (!el) return;
   const base = app.nombreArchivo ? `«${app.nombreArchivo}»` : 'Guardado local';
   el.textContent = app.cambiosSinArchivo ? `${base} · sin exportar` : base;
   el.classList.toggle('pendiente', app.cambiosSinArchivo);
@@ -351,7 +400,7 @@ function pintarTablero() {
 
 function fichaHTML(t) {
   const categoria = buscarCategoria(t.categoriaId);
-  const color = categoria?.color || '#8c5a3c';
+  const color = categoria ? categoria.color : '#8c5a3c';
   const vencida = estaVencida(t);
   const notas = t.seguimiento.filter(s => s.tipo === 'nota').length;
 
@@ -360,7 +409,7 @@ function fichaHTML(t) {
              draggable="true" tabindex="0" data-id="${escapar(t.id)}"
              style="--color-cat:${color};--giro:${giroDesdeId(t.id)}deg"
              aria-label="${escapar(t.titulo)}">
-      <span class="ficha-cinta">${escapar(categoria?.nombre || '')}</span>
+      <span class="ficha-cinta">${escapar(categoria ? categoria.nombre : '')}</span>
       <h4 class="ficha-titulo">${escapar(t.titulo)}</h4>
       ${t.descripcion ? `<p class="ficha-desc">${escapar(t.descripcion)}</p>` : ''}
       <div class="ficha-progreso" role="progressbar" aria-valuenow="${t.progreso}" aria-valuemin="0" aria-valuemax="100">
@@ -396,21 +445,22 @@ function abrirDialogoTarea(id = null) {
   const form = $('#form-tarea');
   const f = form.elements;
   const tarea = id ? buscarTarea(id) : null;
-  app.tareaActualId = tarea?.id || null;
+  app.tareaActualId = tarea ? tarea.id : null;
 
   form.reset();
   f.categoriaId.innerHTML = app.datos.categorias
     .map(c => `<option value="${escapar(c.id)}">${escapar(c.nombre)}</option>`).join('');
 
   $('#titulo-dialogo-tarea').textContent = tarea ? 'Ficha de tarea' : 'Nueva tarea';
-  f.titulo.value = tarea?.titulo || '';
-  f.descripcion.value = tarea?.descripcion || '';
-  f.categoriaId.value = tarea?.categoriaId
-    || (app.filtro.categoriaId !== 'todas' ? app.filtro.categoriaId : app.datos.categorias[0].id);
-  f.prioridad.value = tarea?.prioridad || 'media';
-  f.estado.value = tarea?.estado || 'pendiente';
-  f.fechaLimite.value = tarea?.fechaLimite || '';
-  f.progreso.value = tarea?.progreso ?? 0;
+  f.titulo.value = tarea ? tarea.titulo : '';
+  f.descripcion.value = tarea ? tarea.descripcion : '';
+  f.categoriaId.value = tarea
+    ? tarea.categoriaId
+    : (app.filtro.categoriaId !== 'todas' ? app.filtro.categoriaId : app.datos.categorias[0].id);
+  f.prioridad.value = tarea ? tarea.prioridad : 'media';
+  f.estado.value = tarea ? tarea.estado : 'pendiente';
+  f.fechaLimite.value = tarea ? tarea.fechaLimite : '';
+  f.progreso.value = tarea ? tarea.progreso : 0;
   $('#salida-progreso').textContent = `${f.progreso.value}%`;
 
   $('#seccion-seguimiento').hidden = !tarea;
@@ -461,7 +511,7 @@ function guardarTarea(evento) {
 
 function cambiarEstado(id, nuevoEstado) {
   const t = buscarTarea(id);
-  if (!t || t.estado === nuevoEstado) return;
+  if (!t || t.estado === nuevoEstado || !ESTADOS[nuevoEstado]) return;
   registrar(t, 'estado', `${ESTADOS[t.estado]} → ${ESTADOS[nuevoEstado]}`);
   t.estado = nuevoEstado;
   if (nuevoEstado === 'completada') t.progreso = 100;
@@ -494,15 +544,15 @@ function eliminarTarea() {
 /* ---------- Categorías ---------- */
 function abrirDialogoCategoria(id = null) {
   const categoria = id ? buscarCategoria(id) : null;
-  app.categoriaActualId = categoria?.id || null;
+  app.categoriaActualId = categoria ? categoria.id : null;
 
   const form = $('#form-categoria');
   form.reset();
   form.elements.nombre.setCustomValidity('');
   $('#titulo-dialogo-categoria').textContent = categoria ? 'Editar categoría' : 'Nueva categoría';
-  form.elements.nombre.value = categoria?.nombre || '';
+  form.elements.nombre.value = categoria ? categoria.nombre : '';
 
-  const colorActual = categoria?.color || COLORES[app.datos.categorias.length % COLORES.length];
+  const colorActual = categoria ? categoria.color : COLORES[app.datos.categorias.length % COLORES.length];
   const paleta = COLORES.includes(colorActual) ? COLORES : [...COLORES, colorActual];
   $('#opciones-color').innerHTML = paleta.map(color => `
     <label class="muestra" style="--muestra:${color}">
@@ -519,8 +569,12 @@ function guardarCategoria(evento) {
   evento.preventDefault();
   const f = $('#form-categoria').elements;
   const nombre = f.nombre.value.trim();
-  const color = f.color.value || COLORES[0];
-  if (!nombre) return;
+  const marcado = $('#form-categoria input[name="color"]:checked');
+  const color = marcado ? marcado.value : COLORES[0];
+  if (!nombre) {
+    f.nombre.reportValidity();
+    return;
+  }
 
   const duplicada = app.datos.categorias.some(c =>
     c.nombre.toLowerCase() === nombre.toLowerCase() && c.id !== app.categoriaActualId);
@@ -563,19 +617,25 @@ function eliminarCategoria() {
 }
 
 /* ---------- Avisos ---------- */
-let temporizadorAviso;
+function soportaPopover(el) { return typeof el.showPopover === 'function'; }
+
+function mostrarAviso(el, visible) {
+  if (soportaPopover(el)) {
+    try { visible ? el.showPopover() : el.hidePopover(); } catch { /* ya estaba en ese estado */ }
+  } else {
+    el.hidden = !visible;
+  }
+}
+
 function avisar(texto, tipo = 'ok') {
   const el = $('#aviso');
+  if (!el) return;
   el.textContent = texto;
   el.className = `aviso aviso-${tipo}`;
-  if (el.showPopover) {
-    try { el.hidePopover(); } catch { /* no estaba abierto */ }
-    el.showPopover(); // capa superior: visible incluso sobre los diálogos
-  }
+  mostrarAviso(el, false);
+  mostrarAviso(el, true); // reabrir lo pone por encima de cualquier diálogo
   clearTimeout(temporizadorAviso);
-  temporizadorAviso = setTimeout(() => {
-    try { el.hidePopover?.(); } catch { /* ya cerrado */ }
-  }, 2800);
+  temporizadorAviso = setTimeout(() => mostrarAviso(el, false), 2800);
 }
 
 /* ---------- Eventos ---------- */
@@ -593,7 +653,10 @@ function conectarEventos() {
 
   $('#lista-categorias').addEventListener('click', e => {
     const editar = e.target.closest('[data-editar-categoria]');
-    if (editar) return abrirDialogoCategoria(editar.dataset.editarCategoria);
+    if (editar) {
+      abrirDialogoCategoria(editar.dataset.editarCategoria);
+      return;
+    }
     const pestana = e.target.closest('[data-categoria]');
     if (pestana) {
       app.filtro.categoriaId = pestana.dataset.categoria;
@@ -624,7 +687,10 @@ function conectarEventos() {
     e.dataTransfer.effectAllowed = 'move';
     ficha.classList.add('arrastrando');
   });
-  tablero.addEventListener('dragend', e => e.target.closest?.('.ficha')?.classList.remove('arrastrando'));
+  tablero.addEventListener('dragend', e => {
+    const ficha = e.target.closest && e.target.closest('.ficha');
+    if (ficha) ficha.classList.remove('arrastrando');
+  });
 
   $$('.columna-cuerpo').forEach(columna => {
     columna.addEventListener('dragover', e => { e.preventDefault(); columna.classList.add('sobre'); });
@@ -657,12 +723,13 @@ function conectarEventos() {
 
   // Atajos de teclado
   document.addEventListener('keydown', e => {
-    const escribiendo = /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName);
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+    const tecla = (e.key || '').toLowerCase(); // el autocompletado puede enviar key vacío
+    const activo = document.activeElement;
+    const escribiendo = activo && /INPUT|TEXTAREA|SELECT/.test(activo.tagName);
+    if ((e.ctrlKey || e.metaKey) && tecla === 's') {
       e.preventDefault();
       guardarArchivo();
-    } else if (e.key.toLowerCase() === 'n' && !e.ctrlKey && !e.metaKey && !e.altKey
-               && !escribiendo && !$('dialog[open]')) {
+    } else if (tecla === 'n' && !e.ctrlKey && !e.metaKey && !e.altKey && !escribiendo && !$('dialog[open]')) {
       e.preventDefault();
       abrirDialogoTarea();
     }
@@ -672,16 +739,35 @@ function conectarEventos() {
   window.addEventListener('storage', e => {
     if (e.key !== CLAVE_LOCAL) return;
     const datos = leerLocal();
-    if (datos) { app.datos = datos; renderizar(); }
+    if (datos) {
+      app.datos = datos;
+      renderizar();
+    }
   });
 }
 
 /* ---------- Inicio ---------- */
-document.addEventListener('DOMContentLoaded', async () => {
-  $('#fecha-hoy').textContent = new Date().toLocaleDateString('es-CO', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-  });
-  conectarEventos();
-  await cargarInicial();
-  renderizar();
-});
+async function iniciar() {
+  const aviso = $('#aviso');
+  if (aviso && !soportaPopover(aviso)) aviso.hidden = true;
+
+  try {
+    app.datos = crearEstructuraVacia();
+    $('#fecha-hoy').textContent = new Date().toLocaleDateString('es-CO', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+    });
+    conectarEventos();
+    renderizar();          // pinta algo de inmediato
+    await cargarInicial(); // luego carga los datos reales
+    renderizar();
+  } catch (error) {
+    console.error(error);
+    avisar(`Error al iniciar: ${error.message}`, 'error');
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', iniciar);
+} else {
+  iniciar();
+}
